@@ -70,6 +70,11 @@ static inline void ksmbd_tcp_reuseaddr(struct socket *sock)
 #endif
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#define SO_RCVTIMEO_OLD SO_RCVTIMEO
+#define SO_SNDTIMEO_OLD SO_SNDTIMEO
+#endif
+
 static inline void ksmbd_tcp_rcv_timeout(struct socket *sock, s64 secs)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
