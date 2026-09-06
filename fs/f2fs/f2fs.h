@@ -921,6 +921,9 @@ struct f2fs_inode_info {
 	struct f2fs_rwsem i_gc_rwsem[2];
 	struct f2fs_rwsem i_mmap_sem;
 	struct f2fs_rwsem i_xattr_sem; /* avoid racing between reading and changing EAs */
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	struct rw_semaphore i_dnode_sem;
+#endif
 
 	int i_extra_isize;		/* size of extra space located in i_addr */
 	kprojid_t i_projid;		/* id for project quota */
@@ -938,6 +941,19 @@ struct f2fs_inode_info {
 
 	unsigned int atomic_write_cnt;
 	loff_t original_i_size;		/* original i_size before atomic write */
+
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	__u32 mtime_cnt;
+	__u32 is_cache;
+	__u64 mtime_interval;
+	__u32 overwrite_cnt;
+	__u32 append_cnt;
+	__u64 write_chunk;
+	__u64 write_chunk_cnt;
+#ifdef CONFIG_F2FS_ML_STREAMID_FORCE_COLD
+	__u32 is_force_cold;
+#endif
+#endif
 };
 
 static inline void get_read_extent_info(struct extent_info *ext,
@@ -1114,6 +1130,9 @@ struct dnode_of_data {
 	char cur_level;			/* level of hole node page */
 	char max_level;			/* level of current page located */
 	block_t	data_blkaddr;		/* block address of the node block */
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	bool for_dnode_relocation;	/* grab write lock, for dnode relocation */
+#endif
 };
 
 static inline void set_new_dnode(struct dnode_of_data *dn, struct inode *inode,
@@ -1844,7 +1863,11 @@ struct f2fs_sec_blkops_dbg {
 	struct f2fs_sec_blkops_entry entry[NR_F2FS_SEC_DBG_ENTRY];
 };
 #endif
+
 /* @fs.sec -- 6f73593218d3cc1e7f4dc5d927f0b2ac -- */
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+#define STREAMID_PARAMS	11
+#endif
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -2126,6 +2149,14 @@ struct f2fs_sb_info {
 	unsigned long long s_sec_blkops_max_elapsed;
 	struct f2fs_sec_blkops_dbg s_sec_dbg_entries[F2FS_SEC_BLKOPS_ENTRIES];
 	struct f2fs_sec_blkops_dbg s_sec_dbg_max_entry;
+#endif
+
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	long long logistic_bias;
+	long long logistic_threshold;
+	long long logistic_scale[STREAMID_PARAMS];
+	int mp_uid;
+	int streamid_enable;
 #endif
 };
 
@@ -4063,6 +4094,11 @@ void f2fs_replace_block(struct f2fs_sb_info *sbi, struct dnode_of_data *dn,
 			block_t old_addr, block_t new_addr,
 			unsigned char version, bool recover_curseg,
 			bool recover_newaddr);
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+void f2fs_relocate_ofs_in_node_of_block(struct f2fs_sb_info *sbi,
+			struct dnode_of_data *dn,
+			block_t blkaddr, unsigned char version);
+#endif
 int f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 			block_t old_blkaddr, block_t *new_blkaddr,
 			struct f2fs_summary *sum, int type,

@@ -1495,6 +1495,9 @@ static struct inode *f2fs_alloc_inode(struct super_block *sb)
 	init_f2fs_rwsem(&fi->i_gc_rwsem[WRITE]);
 	init_f2fs_rwsem(&fi->i_mmap_sem);
 	init_f2fs_rwsem(&fi->i_xattr_sem);
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	init_f2fs_rwsem(&fi->i_dnode_sem);
+#endif
 
 	/* Will be used by directory only */
 	fi->i_dir_level = F2FS_SB(sb)->dir_level;
