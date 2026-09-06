@@ -648,7 +648,7 @@ uint16 bcmhex2bin(const uint8* hex, uint hex_len, uint8 *buf, uint buf_len);
 #define VALID_MASK(mask)	!((mask) & ((mask) + 1))
 
 #ifndef OFFSETOF
-#if ((__GNUC__ >= 4) && (__GNUC_MINOR__ >= 8))
+#if (defined(__clang__) || ((__GNUC__ >= 4) && (__GNUC_MINOR__ >= 8)))
 	/* GCC 4.8+ complains when using our OFFSETOF macro in array length declarations. */
 	#define	OFFSETOF(type, member)	__builtin_offsetof(type, member)
 #else
