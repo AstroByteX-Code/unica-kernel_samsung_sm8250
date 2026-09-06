@@ -1,0 +1,65 @@
+name: Unica Kernel Build SM8250
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        device: [x1q, y2q, z3q ]
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive   # fetch submodules
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            curl \
+            unzip \
+            wget \
+            zip \
+            zstd \
+            bc \
+            bison \
+            flex \
+            libssl-dev \
+            rsync \
+            ccache \
+            python3
+
+      - name: Cache Clang toolchain
+        id: cache-clang
+        uses: actions/cache@v5
+        with:
+          path: clang-r547379
+          key: clang-r547379-cache
+
+      - name: Download prebuilt Google clang (if not cached)
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          wget -O clang-r547379.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r547379.tar.gz
+          mkdir clang-r547379
+          cd clang-r547379
+          tar -xf ../clang-r547379.tar.gz
+          cd ..
+          rm clang-r547379.tar.gz
+
+      - name: Run kernel build
+        run: |
+          chmod +x build_kona.sh
+          ./build_kona.sh ${{ matrix.device }}
+
+      - name: Upload kernel zip
+        uses: actions/upload-artifact@v5
+        with:
+          name: unica-kernel-${{ matrix.device }}
+          path: |
+            *.zip
