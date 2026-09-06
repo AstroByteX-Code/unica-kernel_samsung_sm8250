@@ -92,6 +92,21 @@ config F2FS_FS_ENCRYPTION
 	  FS_ENCRYPTION.  Use CONFIG_FS_ENCRYPTION=y in new config
 	  files.
 
+config F2FS_ML_BASED_STREAM_SEPARATION
+	bool "F2FS STREAMID"
+	depends on F2FS_FS
+	default y
+
+config F2FS_ML_STREAMID_FORCE_COLD
+	bool "F2FS STREAMID force cold feature"
+	depends on F2FS_FS && F2FS_ML_BASED_STREAM_SEPARATION
+	default y
+
+config F2FS_ML_STREAMID_TRACE_ON
+	bool "F2FS STREAMID trace on feature"
+	depends on F2FS_FS && F2FS_ML_BASED_STREAM_SEPARATION
+	default n
+
 config F2FS_STRICT_BUG_ON
 	bool "F2FS consistency checking feature"
 	depends on F2FS_FS

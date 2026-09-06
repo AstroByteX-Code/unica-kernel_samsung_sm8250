@@ -941,6 +941,19 @@ struct f2fs_inode_info {
 
 	unsigned int atomic_write_cnt;
 	loff_t original_i_size;		/* original i_size before atomic write */
+
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	__u32 mtime_cnt;
+	__u32 is_cache;
+	__u64 mtime_interval;
+	__u32 overwrite_cnt;
+	__u32 append_cnt;
+	__u64 write_chunk;
+	__u64 write_chunk_cnt;
+#ifdef CONFIG_F2FS_ML_STREAMID_FORCE_COLD
+	__u32 is_force_cold;
+#endif
+#endif
 };
 
 static inline void get_read_extent_info(struct extent_info *ext,
@@ -1850,7 +1863,11 @@ struct f2fs_sec_blkops_dbg {
 	struct f2fs_sec_blkops_entry entry[NR_F2FS_SEC_DBG_ENTRY];
 };
 #endif
+
 /* @fs.sec -- 6f73593218d3cc1e7f4dc5d927f0b2ac -- */
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+#define STREAMID_PARAMS	11
+#endif
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -2132,6 +2149,14 @@ struct f2fs_sb_info {
 	unsigned long long s_sec_blkops_max_elapsed;
 	struct f2fs_sec_blkops_dbg s_sec_dbg_entries[F2FS_SEC_BLKOPS_ENTRIES];
 	struct f2fs_sec_blkops_dbg s_sec_dbg_max_entry;
+#endif
+
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	long long logistic_bias;
+	long long logistic_threshold;
+	long long logistic_scale[STREAMID_PARAMS];
+	int mp_uid;
+	int streamid_enable;
 #endif
 };
 

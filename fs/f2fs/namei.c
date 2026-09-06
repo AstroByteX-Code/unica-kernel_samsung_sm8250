@@ -331,6 +331,37 @@ fail_drop:
 	return ERR_PTR(err);
 }
 
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+static void update_ml_stream_info(struct inode *inode, struct inode *dir,
+			struct dentry *dentry)
+{
+#ifdef CONFIG_F2FS_ML_STREAMID_FORCE_COLD
+	if (S_ISREG(inode->i_mode)) {
+		if (is_extension_exist(dentry->d_name.name, "exo", true))
+			F2FS_I(inode)->is_force_cold = 1;
+	}
+#endif
+	if (F2FS_I(dir)->is_cache == 1) {
+		F2FS_I(inode)->is_cache = 1;
+		return;
+	}
+	if (strlen("cache") == dentry->d_parent->d_name.len) {
+		if (!strcmp(dentry->d_parent->d_name.name, "cache")) {
+			F2FS_I(inode)->is_cache = 1;
+			F2FS_I(dir)->is_cache = 1;
+			return;
+		}
+	}
+	if (S_ISDIR(inode->i_mode)) {
+		if (strlen("cache") == dentry->d_name.len && !strcmp(dentry->d_name.name, "cache")) {
+			F2FS_I(inode)->is_cache = 1;
+			return;
+		}
+	}
+	F2FS_I(inode)->is_cache = 0;
+}
+#endif
+
 static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 						bool excl)
 {
@@ -352,6 +383,9 @@ static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	update_ml_stream_info(inode, dir, dentry);
+#endif
 	inode->i_op = &f2fs_file_inode_operations;
 	inode->i_fop = &f2fs_file_operations;
 	inode->i_mapping->a_ops = &f2fs_dblock_aops;
@@ -586,7 +620,9 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 	if (__is_hpb_file(dentry->d_name.name, inode))
 		set_inode_flag(inode, FI_HPB_INODE);
 #endif
-
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	update_ml_stream_info(inode, dir, dentry);
+#endif
 out_splice:
 #ifdef CONFIG_UNICODE
 	if (!inode && IS_CASEFOLDED(dir)) {
@@ -789,6 +825,9 @@ static int f2fs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	update_ml_stream_info(inode, dir, dentry);
+#endif
 	inode->i_op = &f2fs_dir_inode_operations;
 	inode->i_fop = &f2fs_dir_operations;
 	inode->i_mapping->a_ops = &f2fs_dblock_aops;
