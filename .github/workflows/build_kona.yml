@@ -38,16 +38,17 @@ jobs:
             python3
 
       - name: Cache Clang toolchain
+        id: cache-clang
         uses: actions/cache@v4
         with:
           path: clang-r547379
           key: clang-r547379-cache
 
       - name: Download prebuilt Google clang (if not cached)
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           wget -O clang-r547379.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r547379.tar.gz
-          mkdir clang-r547379
+          mkdir -p clang-r547379
           cd clang-r547379
           tar -xf ../clang-r547379.tar.gz
           cd ..
