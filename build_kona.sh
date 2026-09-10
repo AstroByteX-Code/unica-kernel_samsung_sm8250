@@ -68,9 +68,6 @@ prepare_ak3() {
 
     cd "$KERNEL_DIR"
     echo ">>> Kernel packaged: ${ZIP_NAME}"
-
-    # Optional: symlink to latest
-    ln -sf "${ZIP_NAME}" "unica-kernel-${DEVICE}-latest.zip"
 }
 
 # Run all steps
