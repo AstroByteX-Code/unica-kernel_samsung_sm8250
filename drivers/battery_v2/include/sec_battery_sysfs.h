@@ -271,7 +271,6 @@ enum {
 #endif
 	BOOT_COMPLETED,
 	PD_DISABLE,
-	BATT_FULL_CAPACITY,
 	LRP,
 };
 
