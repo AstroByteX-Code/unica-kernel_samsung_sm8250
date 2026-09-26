@@ -18,6 +18,7 @@
 #include <linux/filelock.h>
 #endif
 
+#include<linux/string.h>
 #include "compat.h"
 #include "glob.h"
 #include "smb2pdu.h"
@@ -44,6 +45,51 @@
 #include "mgmt/user_session.h"
 #include "mgmt/ksmbd_ida.h"
 #include "ndr.h"
+
+/**
+ * Function to get filename or folder name
+ * from absolute path
+ */
+const char *get_extract(const char *name)
+{
+	const char *last_slash = NULL;
+
+	last_slash = strrchr(name, '/');
+
+	if (last_slash != NULL)
+		return last_slash+1;
+
+	return name;
+}
+
+/**
+ * Function for returning last three characters of string name
+ * return string with last three characters
+ */
+const char *get_last_three_chars(const char *name)
+{
+	int len = strlen(name);
+
+	if (len <= 3)
+		return &name[len];
+
+	return &name[len-3];
+}
+
+/**
+ * Function for returning the filename from File object
+ */
+const char *get_filename(struct file *filp)
+{
+	struct dentry *dentry;
+	const char *filename = NULL;
+
+	if (!filp || !filp->f_path.dentry)
+		return NULL;
+	dentry = filp->f_path.dentry;
+	filename = (const char *)dentry->d_name.name;
+	return filename;
+}
 
 static void __wbuf(struct ksmbd_work *work, void **req, void **rsp)
 {
@@ -1967,7 +2013,7 @@ int smb2_tree_connect(struct ksmbd_work *work)
 	ksmbd_debug(SMB, "tree connect request for tree %s treename %s\n",
 		    name, treename);
 
-	status = ksmbd_tree_conn_connect(conn, sess, name);
+	status = ksmbd_tree_conn_connect(work, name);
 	if (status.ret == KSMBD_TREE_CONN_STATUS_OK)
 		rsp->hdr.Id.SyncId.TreeId = cpu_to_le32(status.tree_conn->id);
 	else
@@ -2957,7 +3003,8 @@ int smb2_open(struct ksmbd_work *work)
 			goto err_out2;
 		}
 
-		ksmbd_debug(SMB, "converted name = %s\n", name);
+		ksmbd_debug(SMB, "converted name = *%s\n",
+			    get_last_three_chars(get_extract((const char *)name)));
 		if (strchr(name, ':')) {
 			if (!test_share_config_flag(work->tcon->share_conf,
 						    KSMBD_SHARE_FLAG_STREAMS)) {
@@ -3213,8 +3260,8 @@ int smb2_open(struct ksmbd_work *work)
 	} else {
 		if (rc != -ENOENT)
 			goto err_out;
-		ksmbd_debug(SMB, "can not get linux path for %s, rc = %d\n",
-			    name, rc);
+		ksmbd_debug(SMB, "can not get linux path for *%s, rc = %d\n",
+			    get_last_three_chars(get_extract((const char *)name)), rc);
 		rc = 0;
 	}
 
@@ -3306,6 +3353,12 @@ int smb2_open(struct ksmbd_work *work)
 			rc = -EACCES;
 			goto err_out;
 		}
+	}
+
+	if (req->CreateOptions & FILE_DIRECTORY_FILE_LE ||
+			(file_present && S_ISDIR(d_inode(path.dentry)->i_mode))) {
+		open_flags &= ~O_ACCMODE;
+		may_flags &= ~MAY_WRITE;
 	}
 
 	/*create file if not present */
@@ -5883,6 +5936,10 @@ int smb2_query_info(struct ksmbd_work *work)
 	WORK_BUFFERS(work, req, rsp);
 
 	ksmbd_debug(SMB, "GOT query info request\n");
+	if (ksmbd_override_fsids(work)) {
+		rc = -ENOMEM;
+		goto err_out;
+	}
 
 	switch (req->InfoType) {
 	case SMB2_O_INFO_FILE:
@@ -5902,6 +5959,7 @@ int smb2_query_info(struct ksmbd_work *work)
 			    req->InfoType);
 		rc = -EOPNOTSUPP;
 	}
+	ksmbd_revert_fsids(work);
 
 	if (!rc) {
 		rsp->StructureSize = cpu_to_le16(9);
@@ -5911,6 +5969,7 @@ int smb2_query_info(struct ksmbd_work *work)
 					le32_to_cpu(rsp->OutputBufferLength));
 	}
 
+err_out:
 	if (rc < 0) {
 		if (rc == -EACCES)
 			rsp->hdr.Status = STATUS_ACCESS_DENIED;
@@ -6159,7 +6218,8 @@ static int smb2_rename(struct ksmbd_work *work,
 		goto out;
 	}
 
-	ksmbd_debug(SMB, "new name %s\n", new_name);
+	ksmbd_debug(SMB, "new name *%s\n",
+		    get_last_three_chars(get_extract((const char *)new_name)));
 	if (ksmbd_share_veto_filename(share, new_name)) {
 		rc = -ENOENT;
 		ksmbd_debug(SMB, "Can't rename vetoed file: %s\n", new_name);
@@ -6264,7 +6324,8 @@ static int smb2_rename(struct ksmbd_work *work,
 		goto out;
 	}
 
-	ksmbd_debug(SMB, "new name %s\n", new_name);
+	ksmbd_debug(SMB, "new name *%s\n",
+		    get_last_three_chars(get_extract((const char *)new_name)));
 	rc = ksmbd_vfs_kern_path(work, new_name, LOOKUP_NO_SYMLINKS, &path, 1);
 	if (rc) {
 		if (rc != -ENOENT)
@@ -7174,8 +7235,8 @@ int smb2_read(struct ksmbd_work *work)
 		goto out;
 	}
 
-	ksmbd_debug(SMB, "filename %pD, offset %lld, len %zu\n",
-		    fp->filp, offset, length);
+	ksmbd_debug(SMB, "filename *%s, offset %lld, len %zu\n",
+		    get_last_three_chars(get_filename(fp->filp)), offset, length);
 
 	aux_payload_buf = kvzalloc(length, GFP_KERNEL);
 	if (!aux_payload_buf) {
@@ -7440,8 +7501,8 @@ int smb2_write(struct ksmbd_work *work)
 		data_buf = (char *)(((char *)&req->hdr.ProtocolId) +
 				    le16_to_cpu(req->DataOffset));
 
-		ksmbd_debug(SMB, "filename %pD, offset %lld, len %zu\n",
-			    fp->filp, offset, length);
+		ksmbd_debug(SMB, "filename *%s, offset %lld, len %zu\n",
+			    get_last_three_chars(get_filename(fp->filp)), offset, length);
 		err = ksmbd_vfs_write(work, fp, data_buf, length, &offset,
 				      writethrough, &nbytes);
 		if (err < 0)
