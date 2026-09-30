@@ -1,0 +1,115 @@
+name: Build kernel Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: "Target device codename (x1q, y2q, z3q)"
+        required: true
+        default: "y2q"
+      release:
+        description: "Upload release"
+        type: boolean
+        required: true
+        default: false
+      changelog:
+        description: "Changelog"
+        type: string
+        required: false
+
+permissions:
+  contents: write 
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      # 1. Checkout repository with submodules (shallow clone)
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+          fetch-depth: 1
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            curl \
+            unzip \
+            wget \
+            zip \
+            zstd \
+            bc \
+            bison \
+            flex \
+            libssl-dev \
+            rsync \
+            ccache \
+            python3 \
+            llvm \
+            lld
+
+      - name: Cache Clang toolchain
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: clang-r547379
+          key: clang-r547379-cache
+
+      - name: Download prebuilt Google clang (if not cached)
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          wget --no-cookies --header "Cookie: gi=0" -O clang-r547379.tar.gz \
+            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r547379.tar.gz
+          mkdir -p clang-r547379
+          cd clang-r547379
+          tar -xf ../clang-r547379.tar.gz
+          cd ..
+          rm clang-r547379.tar.gz
+
+      # 2. Run your custom boot build script
+      - name: Build kernel (boot)
+        run: |
+          chmod +x build_boot.sh
+          ./build_boot.sh ${{ github.event.inputs.device }}
+
+      - name: Generate release version
+        id: ts
+        run: |
+          echo "RELEASE_TS=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+          : > version.txt
+          echo "**Kernel version:** $(cat out/include/config/kernel.release)  " >> version.txt
+          echo >> version.txt
+          export KHASH="$(git rev-parse HEAD)"
+          echo "**Kernel source:** [$KHASH](https://github.com/UN1CA/kernel_samsung_sm8250/tree/$KHASH)" >> version.txt
+
+          if [ "${{ github.event.inputs.release }}" = "true" ] && \
+             [ -n "${{ github.event.inputs.changelog }}" ]; then
+            echo >> version.txt
+            echo "**Changelog:**" >> version.txt
+            echo >> version.txt
+            printf "%b\n" "${{ github.event.inputs.changelog }}" >> version.txt
+          fi
+
+      # 3. Ensure artifacts exist
+      - name: Ensure artifacts exist
+        run: |
+          test -f boot.img || (echo "boot.img missing" && exit 1)
+          test -f out/dtbo.img || (echo "dtbo.img missing" && exit 1)
+
+      # 4. Upload the generated boot.img + dtbo.img
+      - name: Upload release assets
+        if: github.event.inputs.release
+        uses: softprops/action-gh-release@v2.4.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          body_path: version.txt
+          tag_name: "${{ env.RELEASE_TS }}"
+          name: "UN1CA-${{ github.event.inputs.device}}-${{ env.RELEASE_TS }}"
+          files: |
+            boot.img
+            out/dtbo.img
