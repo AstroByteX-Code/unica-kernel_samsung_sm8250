@@ -11,6 +11,7 @@
  */
 
 #include "sec_ts.h"
+#include <linux/proc_fs.h>
 
 struct sec_ts_data *tsp_info;
 
@@ -850,7 +851,9 @@ static void sec_ts_sponge_dump_flush(struct sec_ts_data *ts, int dump_area)
 			snprintf(buff, sizeof(buff), "%03d: %04x%04x%04x%04x%04x\n",
 					i + (ts->sponge_dump_event * dump_area), 
 					edata[0], edata[1], edata[2], edata[3], edata[4]);
+#ifdef CONFIG_SEC_DEBUG_TSP_LOG
 			sec_tsp_sponge_log(buff);
+#endif
 		}
 	}
 
@@ -1700,6 +1703,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 				input_sync(ts->input_dev);
 				break;
 			case SEC_TS_GESTURE_CODE_DUMPFLUSH:
+#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 				if (ts->sponge_inf_dump) {
 					if (ts->power_status == SEC_TS_STATE_LPM) {
 						if (p_gesture_status->gesture_id == SEC_TS_SPONGE_DUMP_0)
@@ -1711,6 +1715,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 						ts->sponge_dump_delayed_area = p_gesture_status->gesture_id;
 					}
 				}
+#endif
 				break;
 			}
 
@@ -2405,7 +2410,11 @@ static int sec_ts_parse_dt(struct i2c_client *client)
 				if (pdata->bringup == 4)
 					pdata->bringup = 3;
 			} else {
-				u32 lcd_id[lcd_id_num];
+				u32 *lcd_id;
+
+				lcd_id = devm_kcalloc(dev, lcd_id_num, sizeof(*lcd_id), GFP_KERNEL);
+				if (!lcd_id)
+					return -ENOMEM;
 
 				of_property_read_u32_array(np, "sec,select_lcdid", lcd_id, lcd_id_num);
 
@@ -3639,7 +3648,9 @@ int sec_ts_set_lowpowermode(struct sec_ts_data *ts, u8 mode)
 
 		if (ts->sponge_inf_dump) {
 			if (ts->sponge_dump_delayed_flag) {
+#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 				sec_ts_sponge_dump_flush(ts, ts->sponge_dump_delayed_area);
+#endif
 				ts->sponge_dump_delayed_flag = false;
 				input_info(true, &ts->client->dev, "%s : Sponge dump flush delayed work have procceed\n", __func__);
 			}
