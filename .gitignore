@@ -142,3 +142,6 @@ Android.bp
 
 # Ignore build environment
 out/
+
+#Toolchain
+clang-r547379
