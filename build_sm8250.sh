@@ -8,7 +8,7 @@ TOOLCHAIN_DIR="$2"
 # Global build variables
 export ARCH=arm64
 mkdir -p out
-export PATH="$TOOLCHAIN_DIR/bin:$PATH"
+export PATH=$(pwd)/clang-r547379/bin:$PATH
 BUILD_VAR="-j$(nproc) -C $(pwd) O=$(pwd)/out ARCH=arm64 LLVM=1"
 
 build_kernel() {
