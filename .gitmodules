@@ -1,3 +1,6 @@
 [submodule "mkbootimg"]
 	path = mkbootimg
 	url = https://android.googlesource.com/platform/system/tools/mkbootimg
+[submodule "NoMount"]
+	path = NoMount
+	url = https://github.com/maxsteeel/nomount/
