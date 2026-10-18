@@ -77,6 +77,7 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	struct dsi_display *display;
 	struct sde_connector *c_conn;
 	int bl_lvl;
+	u32 panel_bl_max_level;
 	struct drm_event event;
 	int rc = 0;
 
@@ -92,8 +93,15 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	if (brightness > display->panel->bl_config.bl_max_level)
 		brightness = display->panel->bl_config.bl_max_level;
 
+	panel_bl_max_level = display->panel->bl_config.bl_max_level;
+	/* PAC candela map keys use UI brightness scaled by 100. */
+	if (display->panel->panel_private &&
+		((struct samsung_display_driver_data *)
+		display->panel->panel_private)->br_info.common_br.pac)
+		panel_bl_max_level *= 100;
+
 	/* map UI brightness into driver backlight level with rounding */
-	bl_lvl = mult_frac(brightness, display->panel->bl_config.bl_max_level,
+	bl_lvl = mult_frac(brightness, panel_bl_max_level,
 			display->panel->bl_config.brightness_max_level);
 
 	if (!bl_lvl && brightness)
